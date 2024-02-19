@@ -10,8 +10,12 @@ public class LevelEditor : EditorWindow
     [MenuItem("Tools/LevelEditor")]
     public static void ShowWindow() => GetWindow<LevelEditor>("Level Editor");
     private GameObject m_WorkPlane;
-    private GameObject[] prefabs;
-    [SerializeField] bool[] selectedPrefabs;
+    private GameObject[] m_PrefabsList;
+    [SerializeField] private bool[] m_SelectablesPrefabs;
+    private int m_SelectedPref;
+    private Vector3 m_MouseWorldPosition;
+
+
     private void OnEnable()
     {
         m_WorkPlane = CreatePlane(new Vector3(0,1,0));
@@ -19,11 +23,12 @@ public class LevelEditor : EditorWindow
 
         string[] guids = AssetDatabase.FindAssets("t:prefab", new[] { "Assets/Prefabs" });
         IEnumerable<string> paths = guids.Select(AssetDatabase.GUIDToAssetPath);
-        prefabs = paths.Select(AssetDatabase.LoadAssetAtPath<GameObject>).ToArray();
+        m_PrefabsList = paths.Select(AssetDatabase.LoadAssetAtPath<GameObject>).ToArray();
         
-        if (selectedPrefabs == null || selectedPrefabs.Length != prefabs.Length)
+        if (m_SelectablesPrefabs == null || m_SelectablesPrefabs.Length != m_PrefabsList.Length)
         {
-            selectedPrefabs = new bool[prefabs.Length];
+            m_SelectablesPrefabs = new bool[m_PrefabsList.Length];
+            m_SelectedPref = -1;
         }
 
     }
@@ -37,7 +42,7 @@ public class LevelEditor : EditorWindow
 
     private void DuringSceneGUI(SceneView sceneView)
     {
-        DrawGUI(); 
+        DrawGUI();
 
         Transform cam = sceneView.camera.transform;
 
@@ -65,16 +70,51 @@ public class LevelEditor : EditorWindow
             Event.current.Use();
         }
 
-        if(TryRaycastFromCamera(cam.up, out Vector3 mouseWorldPosition, out Matrix4x4 tangentToWorldMatrix))
+        if (TryRaycastFromCamera(cam.up, out Matrix4x4 tangentToWorldMatrix))
         {
             if (Event.current.type == EventType.Repaint)
             {
                 DrawBrush(tangentToWorldMatrix);
+                DrawPrefabPreviews();
             }
+        }
+
+        if (Event.current.keyCode == KeyCode.E && Event.current.type == EventType.KeyDown)
+        {
+            TrySpawnObject();
         }
     }
 
-    void DrawBrush(Matrix4x4 tangentToWorld)
+    private void DrawPrefabPreviews()
+    {
+        float y = m_WorkPlane.transform.position.y + m_WorkPlane.transform.localScale.y/2;
+        if (m_SelectedPref == -1 || m_MouseWorldPosition.y != y) return;
+
+        Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(m_MouseWorldPosition, Quaternion.identity, Vector3.one);
+        MeshFilter[] filters = m_PrefabsList[m_SelectedPref].GetComponentsInChildren<MeshFilter>();
+
+        foreach (MeshFilter filter in filters)
+        {
+            Matrix4x4 childToPose = filter.transform.localToWorldMatrix;
+            Matrix4x4 childToWorldMtx = poseToWorldMtx * childToPose;
+
+            Mesh mesh = filter.sharedMesh;
+            Material mat = filter.GetComponent<MeshRenderer>().sharedMaterial;
+            mat.SetPass(0);
+            Graphics.DrawMeshNow(mesh, childToWorldMtx);
+        }
+    }
+
+    private void TrySpawnObject()
+    {
+        if (m_SelectedPref == -1) return;
+
+        GameObject thingToSpawn = (GameObject)PrefabUtility.InstantiatePrefab(m_PrefabsList[m_SelectedPref]);
+        Undo.RegisterCreatedObjectUndo(thingToSpawn, "Object Spawn");
+        thingToSpawn.transform.SetPositionAndRotation(m_MouseWorldPosition, Quaternion.identity);
+    }
+
+    private void DrawBrush(Matrix4x4 tangentToWorld)
     {
         const int circleDetail = 128;
         Vector3[] points = new Vector3[circleDetail];
@@ -96,13 +136,13 @@ public class LevelEditor : EditorWindow
 
     }
 
-    bool TryRaycastFromCamera(Vector2 cameraUp, out Vector3 mouseWorldPosition, out Matrix4x4 tangentToWorldMatrix)
+    private bool TryRaycastFromCamera(Vector2 cameraUp, out Matrix4x4 tangentToWorldMatrix)
     {
         Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
 
         if (Physics.Raycast(ray, out RaycastHit hit))
         {
-            mouseWorldPosition = hit.point;
+            m_MouseWorldPosition = hit.point;
             Vector3 hitNormal = hit.normal;
 
             Vector3 hitTangent = Vector3.Cross(hitNormal, cameraUp).normalized;
@@ -113,29 +153,38 @@ public class LevelEditor : EditorWindow
             return true;
         }
 
-        mouseWorldPosition = default;
+        m_MouseWorldPosition = default;
         tangentToWorldMatrix = default;
         return false;
     }
 
-    void DrawGUI()
+    private void DrawGUI()
     {
         Handles.BeginGUI();
 
         Rect rect = new Rect(8, 8, 50, 50);
 
-        for (int i = 0; i < prefabs.Length; i++)
+        for (int i = 0; i < m_PrefabsList.Length; i++)
         {
-            GameObject prefab = prefabs[i];
+            GameObject prefab = m_PrefabsList[i];
             Texture icon = AssetPreview.GetAssetPreview(prefab);
 
             EditorGUI.BeginChangeCheck();
-            selectedPrefabs[i] = GUI.Toggle(rect, selectedPrefabs[i], new GUIContent(icon));
 
-            if (EditorGUI.EndChangeCheck())
+            m_SelectablesPrefabs[i] = GUI.Toggle(rect, m_SelectablesPrefabs[i], new GUIContent(icon));
+
+            if(m_SelectablesPrefabs[i] == true)
+                m_SelectedPref = i;
+
+            for(int j = 0; j < m_PrefabsList.Length; j++)
             {
-
+                if (j != m_SelectedPref)
+                    m_SelectablesPrefabs[j] = false;
             }
+
+            if (m_SelectedPref != -1 && m_SelectablesPrefabs[m_SelectedPref] == false)
+                m_SelectedPref = -1;
+            
 
             rect.y += rect.height + 2;
         }
