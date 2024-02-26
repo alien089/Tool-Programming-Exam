@@ -14,14 +14,18 @@ public class LevelEditor : EditorWindow
     [SerializeField] private bool[] m_SelectablesPrefabs;
     private int m_SelectedPref;
     private Vector3 m_MouseWorldPosition;
-
-
+    private bool m_SnapModeEnabled = false;
+    private GameObject m_SnappableObj;
+    private int m_LayerIgnoreRaycast;
+    private int m_PrevLayer;
+        
     private void OnEnable()
     {
         m_WorkPlane = CreatePlane(new Vector3(0,1,0));
         SceneView.duringSceneGui += DuringSceneGUI;
+        m_LayerIgnoreRaycast = LayerMask.NameToLayer("Ignore Raycast");
 
-        string[] guids = AssetDatabase.FindAssets("t:prefab", new[] { "Assets/Prefabs" });
+        string[] guids = AssetDatabase.FindAssets("t:prefab", new[] { "Assets/Prefabs/Rooms" });
         IEnumerable<string> paths = guids.Select(AssetDatabase.GUIDToAssetPath);
         m_PrefabsList = paths.Select(AssetDatabase.LoadAssetAtPath<GameObject>).ToArray();
         
@@ -75,11 +79,31 @@ public class LevelEditor : EditorWindow
             if (Event.current.type == EventType.Repaint)
             {
                 DrawBrush(tangentToWorldMatrix);
-                DrawPrefabPreviews();
+
+                if (m_SnapModeEnabled == false)
+                    DrawPrefabPreviews();
+                else
+                    MoveSnapObj();
             }
         }
 
-        if (Event.current.keyCode == KeyCode.E && Event.current.type == EventType.KeyDown)
+        if (m_SnapModeEnabled == false && Event.current.keyCode == KeyCode.Q && Event.current.type == EventType.KeyDown)
+        {
+            m_SnapModeEnabled = true;
+            TrySpawnObject();
+        }
+
+        if (m_SnapModeEnabled == true && Event.current.keyCode == KeyCode.W && Event.current.type == EventType.KeyDown)
+        {
+            m_SnapModeEnabled = false;
+            for (int i = 0; i < m_SnappableObj.transform.childCount; i++)
+            {
+                m_SnappableObj.transform.GetChild(i).gameObject.layer = m_PrevLayer;
+            }
+            m_SnappableObj = null;
+        }
+
+        if (m_SnapModeEnabled == false && Event.current.keyCode == KeyCode.E && Event.current.type == EventType.KeyDown)
         {
             TrySpawnObject();
         }
@@ -105,6 +129,14 @@ public class LevelEditor : EditorWindow
         }
     }
 
+    private void MoveSnapObj() 
+    {
+        float y = m_WorkPlane.transform.position.y + m_WorkPlane.transform.localScale.y / 2;
+        if (m_SelectedPref == -1 || m_MouseWorldPosition.y != y) return;
+
+        m_SnappableObj.transform.position = m_MouseWorldPosition;
+    }
+
     private void TrySpawnObject()
     {
         if (m_SelectedPref == -1) return;
@@ -112,6 +144,16 @@ public class LevelEditor : EditorWindow
         GameObject thingToSpawn = (GameObject)PrefabUtility.InstantiatePrefab(m_PrefabsList[m_SelectedPref]);
         Undo.RegisterCreatedObjectUndo(thingToSpawn, "Object Spawn");
         thingToSpawn.transform.SetPositionAndRotation(m_MouseWorldPosition, Quaternion.identity);
+
+        if (m_SnapModeEnabled)
+        {
+            m_SnappableObj = thingToSpawn;
+            m_PrevLayer = m_SnappableObj.layer;
+            for(int i = 0; i < m_SnappableObj.transform.childCount; i++)
+            {
+                m_SnappableObj.transform.GetChild(i).gameObject.layer = m_LayerIgnoreRaycast;
+            }
+        }
     }
 
     private void DrawBrush(Matrix4x4 tangentToWorld)
@@ -140,7 +182,8 @@ public class LevelEditor : EditorWindow
     {
         Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
 
-        if (Physics.Raycast(ray, out RaycastHit hit))
+        int layerMask = ~(1 << m_LayerIgnoreRaycast); 
+        if (Physics.Raycast(ray, out RaycastHit hit, 1000f, layerMask))
         {
             m_MouseWorldPosition = hit.point;
             Vector3 hitNormal = hit.normal;
