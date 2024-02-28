@@ -20,7 +20,7 @@ public class DoorChecker : MonoBehaviour
         else
         {
             RaycastHit hit;
-            if(Physics.BoxCast(transform.position, new Vector3(0.5f, 2, 0.2f), Vector3.forward, out hit, Quaternion.identity, 3f))
+            if(Physics.Raycast(transform.position, Vector3.forward, out hit, 1f))
             {
                 if(hit.collider.gameObject.tag == "Door")
                 {

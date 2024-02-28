@@ -56,8 +56,34 @@ public class LevelEditor : EditorWindow
         }
 
         bool isHoldingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
+        bool isHoldingCtrl = (Event.current.modifiers & EventModifiers.Control) != 0;
 
-        if (Event.current.type == EventType.ScrollWheel && isHoldingAlt == true)
+        AdjustWorkPlane();
+
+        if (TryRaycastFromCamera(cam.up, out Matrix4x4 tangentToWorldMatrix))
+        {
+            if (Event.current.type == EventType.Repaint)
+            {
+                DrawBrush(tangentToWorldMatrix);
+
+                if (m_SnapModeEnabled == false)
+                    DrawPrefabPreviews();
+                else
+                    MoveSnapObj();
+            }
+        }
+
+        SnapManagment();
+
+        if (m_SnapModeEnabled == false && Event.current.keyCode == KeyCode.E && Event.current.type == EventType.KeyDown)
+        {
+            TrySpawnObject();
+        }
+    }
+
+    private void AdjustWorkPlane()
+    {
+        if (Event.current.type == EventType.ScrollWheel && isHoldingAlt)
         {
             float scrollDirection = Mathf.Sign(Event.current.delta.y);
 
@@ -73,18 +99,15 @@ public class LevelEditor : EditorWindow
 
             Event.current.Use();
         }
+    }
 
-        if (TryRaycastFromCamera(cam.up, out Matrix4x4 tangentToWorldMatrix))
+    private void SnapManagment()
+    {
+        if (Event.current.keyCode == KeyCode.Alpha1 && Event.current.type == EventType.KeyDown && isHoldingCtrl)
         {
-            if (Event.current.type == EventType.Repaint)
-            {
-                DrawBrush(tangentToWorldMatrix);
-
-                if (m_SnapModeEnabled == false)
-                    DrawPrefabPreviews();
-                else
-                    MoveSnapObj();
-            }
+            m_SnapModeEnabled = false;
+            DestroyImmediate(m_SnappableObj);
+            m_SnappableObj = null;
         }
 
         if (m_SnapModeEnabled == false && Event.current.keyCode == KeyCode.Q && Event.current.type == EventType.KeyDown)
@@ -101,11 +124,6 @@ public class LevelEditor : EditorWindow
                 m_SnappableObj.transform.GetChild(i).gameObject.layer = m_PrevLayer;
             }
             m_SnappableObj = null;
-        }
-
-        if (m_SnapModeEnabled == false && Event.current.keyCode == KeyCode.E && Event.current.type == EventType.KeyDown)
-        {
-            TrySpawnObject();
         }
     }
 
