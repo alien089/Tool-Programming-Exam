@@ -55,8 +55,8 @@ public class LevelEditor : EditorWindow
             sceneView.Repaint();
         }
 
-        bool isHoldingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
-        bool isHoldingCtrl = (Event.current.modifiers & EventModifiers.Control) != 0;
+        
+        
 
         AdjustWorkPlane();
 
@@ -83,6 +83,7 @@ public class LevelEditor : EditorWindow
 
     private void AdjustWorkPlane()
     {
+        bool isHoldingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
         if (Event.current.type == EventType.ScrollWheel && isHoldingAlt)
         {
             float scrollDirection = Mathf.Sign(Event.current.delta.y);
@@ -103,6 +104,7 @@ public class LevelEditor : EditorWindow
 
     private void SnapManagment()
     {
+        bool isHoldingCtrl = (Event.current.modifiers & EventModifiers.Control) != 0;
         if (Event.current.keyCode == KeyCode.Alpha1 && Event.current.type == EventType.KeyDown && isHoldingCtrl)
         {
             m_SnapModeEnabled = false;
