@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,12 +14,20 @@ public class LevelEditor : EditorWindow
     private GameObject[] m_PrefabsList;
     [SerializeField] private bool[] m_SelectablesPrefabs;
     private int m_SelectedPref;
+
     private Vector3 m_MouseWorldPosition;
+
+    private float m_ActualRotation;
+
     private bool m_SnapModeEnabled = false;
     private GameObject m_SnappableObj;
     private int m_LayerIgnoreRaycast;
     private int m_PrevLayer;
-        
+
+    private bool isHoldingAlt;
+    private bool isHoldingCtrl;
+    private bool isHoldingShift;
+
     private void OnEnable()
     {
         m_WorkPlane = CreatePlane(new Vector3(0,1,0));
@@ -48,6 +57,10 @@ public class LevelEditor : EditorWindow
     {
         DrawGUI();
 
+        isHoldingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
+        isHoldingCtrl = (Event.current.modifiers & EventModifiers.Control) != 0;
+        isHoldingShift = (Event.current.modifiers & EventModifiers.Shift) != 0;
+
         Transform cam = sceneView.camera.transform;
 
         if (Event.current.type == EventType.MouseMove)
@@ -55,21 +68,25 @@ public class LevelEditor : EditorWindow
             sceneView.Repaint();
         }
 
-        
-        
-
         AdjustWorkPlane();
+        RotationManagement();
 
         if (TryRaycastFromCamera(cam.up, out Matrix4x4 tangentToWorldMatrix))
         {
             if (Event.current.type == EventType.Repaint)
             {
                 DrawBrush(tangentToWorldMatrix);
+                
 
                 if (m_SnapModeEnabled == false)
                     DrawPrefabPreviews();
                 else
+                {
                     MoveSnapObj();
+                    Quaternion rot = new Quaternion();
+                    rot.Set(0, m_ActualRotation, 0, 1);
+                    m_SnappableObj.transform.rotation = rot;
+                }
             }
         }
 
@@ -81,9 +98,24 @@ public class LevelEditor : EditorWindow
         }
     }
 
+    private void RotationManagement()
+    {
+        if (Event.current.keyCode == KeyCode.A && Event.current.type == EventType.KeyDown)
+        {
+            if (m_ActualRotation >= 90f)
+                m_ActualRotation -= 90f;
+            Event.current.Use();
+        }
+        else if (Event.current.keyCode == KeyCode.D && Event.current.type == EventType.KeyDown)
+        {
+            if (m_ActualRotation <= 270f)
+                m_ActualRotation += 90f;
+            Event.current.Use();
+        }
+    }
+
     private void AdjustWorkPlane()
     {
-        bool isHoldingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
         if (Event.current.type == EventType.ScrollWheel && isHoldingAlt)
         {
             float scrollDirection = Mathf.Sign(Event.current.delta.y);
@@ -100,11 +132,24 @@ public class LevelEditor : EditorWindow
 
             Event.current.Use();
         }
+        else if((Event.current.type == EventType.ScrollWheel && isHoldingShift))
+        {
+            float scrollDirection = Mathf.Sign(Event.current.delta.y);
+            float scale = m_WorkPlane.transform.localScale.x;
+            scale *= 1f - scrollDirection * 0.05f;
+
+            if (scale <= 0.1)
+                scale = 1;
+
+            m_WorkPlane.transform.localScale = new Vector3(scale, 1, scale);
+            Repaint();
+
+            Event.current.Use();
+        }
     }
 
     private void SnapManagment()
     {
-        bool isHoldingCtrl = (Event.current.modifiers & EventModifiers.Control) != 0;
         if (Event.current.keyCode == KeyCode.Alpha1 && Event.current.type == EventType.KeyDown && isHoldingCtrl)
         {
             m_SnapModeEnabled = false;
@@ -134,7 +179,9 @@ public class LevelEditor : EditorWindow
         float y = m_WorkPlane.transform.position.y + m_WorkPlane.transform.localScale.y/2;
         if (m_SelectedPref == -1 || m_MouseWorldPosition.y != y) return;
 
-        Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(m_MouseWorldPosition, Quaternion.identity, Vector3.one);
+        Quaternion rot = new Quaternion();
+        rot.Set(0, m_ActualRotation, 0, 1);
+        Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(m_MouseWorldPosition, rot, Vector3.one);
         MeshFilter[] filters = m_PrefabsList[m_SelectedPref].GetComponentsInChildren<MeshFilter>();
 
         foreach (MeshFilter filter in filters)
@@ -162,12 +209,14 @@ public class LevelEditor : EditorWindow
         if (m_SelectedPref == -1) return;
 
         GameObject thingToSpawn = (GameObject)PrefabUtility.InstantiatePrefab(m_PrefabsList[m_SelectedPref]);
+        
         Undo.RegisterCreatedObjectUndo(thingToSpawn, "Object Spawn");
         thingToSpawn.transform.SetPositionAndRotation(m_MouseWorldPosition, Quaternion.identity);
 
         if (m_SnapModeEnabled)
         {
             m_SnappableObj = thingToSpawn;
+            m_ActualRotation = thingToSpawn.transform.rotation.x;
             m_PrevLayer = m_SnappableObj.layer;
             for(int i = 0; i < m_SnappableObj.transform.childCount; i++)
             {
