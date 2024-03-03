@@ -84,7 +84,9 @@ public class LevelEditor : EditorWindow
                 {
                     MoveSnapObj();
                     Quaternion rot = new Quaternion();
-                    rot.Set(0, m_ActualRotation, 0, 1);
+                    float rad = m_ActualRotation * Mathf.Deg2Rad;
+                    float angleInDegrees2 = rad * Mathf.Rad2Deg;
+                    rot.Set(0, rad, 0, 1);
                     m_SnappableObj.transform.rotation = rot;
                 }
             }
@@ -100,17 +102,20 @@ public class LevelEditor : EditorWindow
 
     private void RotationManagement()
     {
-        if (Event.current.keyCode == KeyCode.A && Event.current.type == EventType.KeyDown)
+        if (m_SelectedPref != -1)
         {
-            if (m_ActualRotation >= 90f)
-                m_ActualRotation -= 90f;
-            Event.current.Use();
-        }
-        else if (Event.current.keyCode == KeyCode.D && Event.current.type == EventType.KeyDown)
-        {
-            if (m_ActualRotation <= 270f)
-                m_ActualRotation += 90f;
-            Event.current.Use();
+            if (Event.current.keyCode == KeyCode.A && Event.current.type == EventType.KeyDown)
+            {
+                if (m_ActualRotation >= 90f)
+                    m_ActualRotation -= 90f;
+                Event.current.Use();
+            }
+            else if (Event.current.keyCode == KeyCode.D && Event.current.type == EventType.KeyDown)
+            {
+                if (m_ActualRotation <= 270f)
+                    m_ActualRotation += 90f;
+                Event.current.Use();
+            }
         }
     }
 
@@ -180,7 +185,8 @@ public class LevelEditor : EditorWindow
         if (m_SelectedPref == -1 || m_MouseWorldPosition.y != y) return;
 
         Quaternion rot = new Quaternion();
-        rot.Set(0, m_ActualRotation, 0, 1);
+        float rad = m_ActualRotation * Mathf.Deg2Rad;
+        rot.Set(0, rad, 0, 1);
         Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(m_MouseWorldPosition, rot, Vector3.one);
         MeshFilter[] filters = m_PrefabsList[m_SelectedPref].GetComponentsInChildren<MeshFilter>();
 
