@@ -83,10 +83,7 @@ public class LevelEditor : EditorWindow
                 else
                 {
                     MoveSnapObj();
-                    Quaternion rot = new Quaternion();
-                    float rad = m_ActualRotation * Mathf.Deg2Rad;
-                    float angleInDegrees2 = rad * Mathf.Rad2Deg;
-                    rot.Set(0, rad, 0, 1);
+                    Quaternion rot = Quaternion.Euler(0, m_ActualRotation, 0);
                     m_SnappableObj.transform.rotation = rot;
                 }
             }
