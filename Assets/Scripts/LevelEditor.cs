@@ -184,9 +184,7 @@ public class LevelEditor : EditorWindow
         float y = m_WorkPlane.transform.position.y + m_WorkPlane.transform.localScale.y/2;
         if (m_SelectedPref == -1 || m_MouseWorldPosition.y != y) return;
 
-        Quaternion rot = new Quaternion();
-        float rad = m_ActualRotation * Mathf.Deg2Rad;
-        rot.Set(0, rad, 0, 1);
+        Quaternion rot = Quaternion.Euler(0, m_ActualRotation, 0);
         Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(m_MouseWorldPosition, rot, Vector3.one);
         MeshFilter[] filters = m_PrefabsList[m_SelectedPref].GetComponentsInChildren<MeshFilter>();
 
